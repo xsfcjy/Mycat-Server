@@ -88,9 +88,9 @@
 	</firewall>
 	-->
 
-	<user name="root">
+	<user name="apigateway_root">
 		<property name="password">123456</property>
-		<property name="schemas">TESTDB</property>
+		<property name="schemas">apigateway</property>
 		
 		<!-- 表级 DML 权限设置 -->
 		<!-- 		
@@ -103,10 +103,14 @@
 		 -->
 	</user>
 
-	<user name="user">
+	<user name="apigateway_user">
 		<property name="password">user</property>
-		<property name="schemas">TESTDB</property>
+		<property name="schemas">sc_apigateway</property>
 		<property name="readOnly">true</property>
 	</user>
 
+	<user name="center_root">
+		<property name="password">123456</property>
+		<property name="schemas">sc_center</property>
+	</user>
 </mycat:server>

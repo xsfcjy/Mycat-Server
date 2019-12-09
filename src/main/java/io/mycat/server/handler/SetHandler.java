@@ -36,6 +36,7 @@ import static io.mycat.server.parser.ServerParseSet.TX_SERIALIZABLE;
 import static io.mycat.server.parser.ServerParseSet.XA_FLAG_OFF;
 import static io.mycat.server.parser.ServerParseSet.XA_FLAG_ON;
 
+import io.mycat.server.parser.ServerParse;
 import org.slf4j.Logger; import org.slf4j.LoggerFactory;
 
 import io.mycat.config.ErrorCode;
@@ -66,6 +67,7 @@ public final class SetHandler {
 			if (c.isAutocommit()) {
 				c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
 			} else {
+				c.setPreAcStates(true);
 				c.commit();
 				c.setAutocommit(true);
 			}
@@ -73,6 +75,7 @@ public final class SetHandler {
 		case AUTOCOMMIT_OFF: {
 			if (c.isAutocommit()) {
 				c.setAutocommit(false);
+				c.setPreAcStates(false);
 			}
 			c.write(c.writeToBuffer(AC_OFF, c.allocate()));
 			break;
@@ -154,11 +157,13 @@ public final class SetHandler {
 			break;
 		default:			
 			 boolean ignore = SetIgnoreUtil.isIgnoreStmt(stmt);
-             if ( !ignore ) {        	 
+             if ( ignore ) {
      			StringBuilder s = new StringBuilder();
     			logger.warn(s.append(c).append(stmt).append(" is not recoginized and ignored").toString());
-             }
-			c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
+				 c.write(c.writeToBuffer(OkPacket.OK, c.allocate()));
+             }else{
+				 c.execute(stmt, ServerParse.UPDATE);
+			 }
 		}
 	}
 

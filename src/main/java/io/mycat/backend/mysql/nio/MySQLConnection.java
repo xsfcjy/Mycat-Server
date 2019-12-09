@@ -24,7 +24,8 @@
 package io.mycat.backend.mysql.nio;
 
 import io.mycat.backend.mysql.xa.TxState;
-import org.slf4j.Logger; import org.slf4j.LoggerFactory;
+import org.slf4j.Logger; 
+import org.slf4j.LoggerFactory;
 
 import io.mycat.MycatServer;
 import io.mycat.backend.mysql.CharsetUtil;
@@ -33,7 +34,11 @@ import io.mycat.backend.mysql.nio.handler.ResponseHandler;
 import io.mycat.config.Capabilities;
 import io.mycat.config.Isolations;
 import io.mycat.net.BackendAIOConnection;
-import io.mycat.net.mysql.*;
+import io.mycat.net.mysql.AuthPacket;
+import io.mycat.net.mysql.CommandPacket;
+import io.mycat.net.mysql.HandshakePacket;
+import io.mycat.net.mysql.MySQLPacket;
+import io.mycat.net.mysql.QuitPacket;
 import io.mycat.route.RouteResultsetNode;
 import io.mycat.server.ServerConnection;
 import io.mycat.server.parser.ServerParse;
@@ -138,7 +143,7 @@ public class MySQLConnection extends BackendAIOConnection {
 	private String user;
 	private String password;
 	private Object attachment;
-	private ResponseHandler respHandler;
+	private volatile ResponseHandler respHandler;
 
 	private final AtomicBoolean isQuit;
 	private volatile StatusSync statusSync;
@@ -268,6 +273,30 @@ public class MySQLConnection extends BackendAIOConnection {
 		return isClosed() || isQuit.get();
 	}
 
+	/**
+	 * <pre>
+	 * 用于解决mysql协议中com_field_list类似的命令的支持 
+	 * （https://dev.mysql.com/doc/internals/en/com-field-list.html）
+	 * 如ogg工具中使用到此命令。
+	 * </pre>
+	 */
+	private void sendComFieldListCmd(String query) {
+		CommandPacket packet = new CommandPacket();
+		packet.packetId = 0;
+		packet.command = MySQLPacket.COM_FIELD_LIST;
+		try {
+			//只需要命令中最后的具体信息
+			int index = query.indexOf(ServerParse.COM_FIELD_LIST_FLAG);
+			query = query.substring(index + 17);
+			packet.arg = query.getBytes(charset);
+			//把query中最后一个改为协议中 0x00
+			packet.arg[query.length() - 1] = (byte) 0x00;
+		} catch (UnsupportedEncodingException e) {
+			throw new RuntimeException(e);
+		}
+		lastTime = TimeUtil.currentTimeMillis();
+		packet.write(this);
+	}
 	protected void sendQueryCmd(String query) {
 		CommandPacket packet = new CommandPacket();
 		packet.packetId = 0;
@@ -388,7 +417,10 @@ public class MySQLConnection extends BackendAIOConnection {
 		if (!modifiedSQLExecuted && rrn.isModifySQL()) {
 			modifiedSQLExecuted = true;
 		}
-		String xaTXID = sc.getSession2().getXaTXID();
+		String xaTXID = null;
+		if(sc.getSession2().getXaTXID()!=null){
+			xaTXID = sc.getSession2().getXaTXID()+",'"+getSchema()+"'";
+		}
 		synAndDoExecute(xaTXID, rrn, sc.getCharsetIndex(), sc.getTxIsolation(),
 				autocommit);
 	}
@@ -400,9 +432,15 @@ public class MySQLConnection extends BackendAIOConnection {
 
 		boolean conAutoComit = this.autocommit;
 		String conSchema = this.schema;
-		// never executed modify sql,so auto commit
-		boolean expectAutocommit = !modifiedSQLExecuted || isFromSlaveDB()
-				|| clientAutoCommit;
+		boolean strictTxIsolation = MycatServer.getInstance().getConfig().getSystem().isStrictTxIsolation();
+		boolean expectAutocommit = false;
+		// 如果在非自动提交情况下,如果需要严格保证事务级别,则需做下列判断
+		if (strictTxIsolation) {
+			expectAutocommit = isFromSlaveDB() || clientAutoCommit;
+		} else {
+			// never executed modify sql,so auto commit
+			expectAutocommit = (!modifiedSQLExecuted || isFromSlaveDB() || clientAutoCommit);
+		}
 		if (expectAutocommit == false && xaTxID != null && xaStatus == TxState.TX_INITIALIZE_STATE) {
 			//clientTxIsoLation = Isolations.SERIALIZABLE;
 			xaCmd = "XA START " + xaTxID + ';';
@@ -419,9 +457,19 @@ public class MySQLConnection extends BackendAIOConnection {
 		}
 		int txIsoLationSyn = (txIsolation == clientTxIsoLation) ? 0 : 1;
 		int autoCommitSyn = (conAutoComit == expectAutocommit) ? 0 : 1;
-		int synCount = schemaSyn + charsetSyn + txIsoLationSyn + autoCommitSyn;
-		if (synCount == 0 && this.xaStatus != TxState.TX_STARTED_STATE) {
+		int synCount = schemaSyn + charsetSyn + txIsoLationSyn + autoCommitSyn + (xaCmd!=null?1:0);
+//		if (synCount == 0 && this.xaStatus != TxState.TX_STARTED_STATE) {
+		if (synCount == 0 ) {
 			// not need syn connection
+//			if (LOGGER.isDebugEnabled()) {
+//				LOGGER.debug("not need syn connection :\n" + this+"\n to send query cmd:\n"+rrn.getStatement()
+//						+"\n in pool\n"
+//				+this.getPool().getConfig());
+//			}
+			if (rrn.getSqlType() == ServerParse.COMMAND) {
+				this.sendComFieldListCmd(rrn.getStatement() + ";");
+				return;
+			}
 			sendQueryCmd(rrn.getStatement());
 			return;
 		}
@@ -444,18 +492,30 @@ public class MySQLConnection extends BackendAIOConnection {
 		if (xaCmd != null) {
 			sb.append(xaCmd);
 		}
+		metaDataSyned = false;
+		statusSync = new StatusSync(xaCmd != null,
+									conSchema,
+									clientCharSetIndex,
+									clientTxIsoLation,
+									expectAutocommit,
+									synCount);
 		if (LOGGER.isDebugEnabled()) {
 			LOGGER.debug("con need syn ,total syn cmd " + synCount
 					+ " commands " + sb.toString() + "schema change:"
 					+ (schemaCmd != null) + " con:" + this);
 		}
-		metaDataSyned = false;
-		statusSync = new StatusSync(xaCmd != null, conSchema,
-				clientCharSetIndex, clientTxIsoLation, expectAutocommit,
-				synCount);
 		// syn schema
 		if (schemaCmd != null) {
 			schemaCmd.write(this);
+		}
+
+		if(rrn.getSqlType() == ServerParse.COMMAND ) {
+			if(sb.length() > 0 ) {
+				statusSync.synCmdCount.incrementAndGet();
+				this.sendQueryCmd(sb.toString());
+			}
+			this.sendComFieldListCmd(rrn.getStatement()+";");
+			return ;
 		}
 		// and our query sql to multi command at last
 		sb.append(rrn.getStatement()+";");
@@ -476,7 +536,7 @@ public class MySQLConnection extends BackendAIOConnection {
 	/**
 	 * by wuzh ,execute a query and ignore transaction settings for performance
 	 * 
-	 * @param sql
+	 * @param query
 	 * @throws UnsupportedEncodingException
 	 */
 	public void query(String query) throws UnsupportedEncodingException {
@@ -486,7 +546,20 @@ public class MySQLConnection extends BackendAIOConnection {
 		synAndDoExecute(null, rrn, this.charsetIndex, this.txIsolation, true);
 
 	}
+	/**
+	 * by zwy ,execute a query with charsetIndex
+	 * 
+	 * @param query
+	 * @throws UnsupportedEncodingException
+	 */
+	@Override
+	public void query(String query, int charsetIndex) {
+		RouteResultsetNode rrn = new RouteResultsetNode("default",
+				ServerParse.SELECT, query);
 
+		synAndDoExecute(null, rrn, charsetIndex, this.txIsolation, true);
+		
+	}
 	public long getLastTime() {
 		return lastTime;
 	}
@@ -510,12 +583,20 @@ public class MySQLConnection extends BackendAIOConnection {
 	public void close(String reason) {
 		if (!isClosed.get()) {
 			isQuit.set(true);
+			ResponseHandler tmpRespHandlers= respHandler;
+			setResponseHandler(null);
 			super.close(reason);
 			pool.connectionClosed(this);
-			if (this.respHandler != null) {
-				this.respHandler.connectionClose(this, reason);
-				respHandler = null;
+			if (tmpRespHandlers != null) {
+				tmpRespHandlers.connectionClose(this, reason);
 			}
+			if( this.handler instanceof MySQLConnectionAuthenticator) {
+				((MySQLConnectionAuthenticator) this.handler).connectionError(this, new Throwable(reason));
+				
+			}
+		} else {
+			//主要起一个清理资源的作用
+			super.close(reason);
 		}
 	}
 
@@ -562,7 +643,8 @@ public class MySQLConnection extends BackendAIOConnection {
 		metaDataSyned = true;
 		attachment = null;
 		statusSync = null;
-		modifiedSQLExecuted = false;
+		modifiedSQLExecuted = false;		
+		xaStatus = TxState.TX_INITIALIZE_STATE;
 		setResponseHandler(null);
 		pool.releaseChannel(this);
 	}
@@ -643,7 +725,7 @@ public class MySQLConnection extends BackendAIOConnection {
 
 	@Override
 	public String toString() {
-		return "MySQLConnection [id=" + id + ", lastTime=" + lastTime
+		return "MySQLConnection@"+ hashCode() +" [id=" + id + ", lastTime=" + lastTime
 				+ ", user=" + user
 				+ ", schema=" + schema + ", old shema=" + oldSchema
 				+ ", borrowed=" + borrowed + ", fromSlaveDB=" + fromSlaveDB
@@ -664,5 +746,4 @@ public class MySQLConnection extends BackendAIOConnection {
 	public int getTxIsolation() {
 		return txIsolation;
 	}
-
 }

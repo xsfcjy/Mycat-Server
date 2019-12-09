@@ -23,23 +23,6 @@
  */
 package io.mycat.net;
 
-import org.slf4j.Logger; import org.slf4j.LoggerFactory;
-
-import io.mycat.MycatServer;
-import io.mycat.backend.mysql.CharsetUtil;
-import io.mycat.backend.mysql.MySQLMessage;
-import io.mycat.config.Capabilities;
-import io.mycat.config.ErrorCode;
-import io.mycat.config.Versions;
-import io.mycat.net.handler.*;
-import io.mycat.net.mysql.ErrorPacket;
-import io.mycat.net.mysql.HandshakePacket;
-import io.mycat.net.mysql.HandshakeV10Packet;
-import io.mycat.net.mysql.MySQLPacket;
-import io.mycat.net.mysql.OkPacket;
-import io.mycat.util.CompressUtil;
-import io.mycat.util.RandomUtil;
-
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
@@ -48,6 +31,30 @@ import java.nio.channels.NetworkChannel;
 import java.nio.channels.SocketChannel;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import io.mycat.MycatServer;
+import io.mycat.backend.mysql.CharsetUtil;
+import io.mycat.backend.mysql.MySQLMessage;
+import io.mycat.config.Capabilities;
+import io.mycat.config.ErrorCode;
+import io.mycat.config.Versions;
+import io.mycat.net.handler.FrontendAuthenticator;
+import io.mycat.net.handler.FrontendPrepareHandler;
+import io.mycat.net.handler.FrontendPrivileges;
+import io.mycat.net.handler.FrontendQueryHandler;
+import io.mycat.net.handler.LoadDataInfileHandler;
+import io.mycat.net.mysql.ErrorPacket;
+import io.mycat.net.mysql.HandshakePacket;
+import io.mycat.net.mysql.HandshakeV10Packet;
+import io.mycat.net.mysql.MySQLPacket;
+import io.mycat.net.mysql.OkPacket;
+import io.mycat.server.parser.ServerParse;
+import io.mycat.util.CompressUtil;
+import io.mycat.util.RandomUtil;
 
 /**
  * @author mycat
@@ -56,16 +63,15 @@ public abstract class FrontendConnection extends AbstractConnection {
 	
 	private static final Logger LOGGER = LoggerFactory.getLogger(FrontendConnection.class);
 
-	protected long id;
-	protected String host;
-	protected int port;
-	protected int localPort;
 	protected long idleTimeout;
 	protected byte[] seed;
 	protected String user;
 	protected String schema;
 	protected String executeSql;
 
+	protected volatile long executeSqlId = 0;
+	protected AtomicLong  responseSqlId = new AtomicLong(0); //新增executeSqlId ,repsonseSqlId 用于避免对一个sql 写回了多个错误的结果.
+	
 	protected FrontendPrivileges privileges;
 	protected FrontendQueryHandler queryHandler;
 	protected FrontendPrepareHandler prepareHandler;
@@ -96,6 +102,9 @@ public abstract class FrontendConnection extends AbstractConnection {
 
 	public void setId(long id) {
 		this.id = id;
+		if(LOGGER.isDebugEnabled()) {
+			LOGGER.debug(this + " localPort:" + this.localPort + " port"+this.port);		
+		}
 	}
 
 	public String getHost() {
@@ -197,9 +206,52 @@ public abstract class FrontendConnection extends AbstractConnection {
 	}
 
 	public void writeErrMessage(int errno, String msg) {
-		writeErrMessage((byte) 1, errno, msg);
+		if(this.canResponse()){
+			if(LOGGER.isDebugEnabled()) {
+				LOGGER.debug("{}{} write errorMsg:{} error",this, msg+ getStack());
+			}
+			writeErrMessage((byte) 1, errno, msg);
+		} else {
+			if(LOGGER.isDebugEnabled()) {
+				LOGGER.debug("{} write errorMsg:{} error",this,msg);
+			}
+		}
 	}
 
+	//前端sql已经返回结果集 则调用这个函数 避免向前端返回多次结果。
+	//modify by zwy
+	public void setResponseId() {
+		//this.responseSqlId = this.executeSqlId;
+		this.canResponse();
+	}
+	public String getStack() {
+		StackTraceElement stack[] = Thread.currentThread().getStackTrace();  
+		StringBuilder sb = new StringBuilder();
+        for(int i=0;i<stack.length;i++){
+        	sb.append(stack[i].getClassName()+" ."+stack[i].getMethodName()+stack[i].getLineNumber()+"\n");
+        }
+        return sb.toString();
+	}
+	//modify by zwy 2018.07
+	public boolean canResponse() {
+		
+//			return true;
+		long resId = this.responseSqlId.get();
+		if(this.executeSqlId > resId) {
+			boolean t = this.responseSqlId.compareAndSet(resId, this.executeSqlId); 
+			if(false) {
+				StackTraceElement stack[] = Thread.currentThread().getStackTrace();  
+				StringBuilder sb = new StringBuilder();
+                for(int i=0;i<stack.length;i++){
+                	sb.append(stack[i].getClassName()+" ."+stack[i].getMethodName()+stack[i].getLineNumber()+"\n");
+                }				
+				LOGGER.debug("can Response " + this.toString() + "  "+ getStack());
+			}
+			return t;
+		}else {
+			return false;
+		}
+	}
 	public void writeErrMessage(byte id, int errno, String msg) {
 		ErrorPacket err = new ErrorPacket();
 		err.packetId = id;
@@ -292,6 +344,10 @@ public abstract class FrontendConnection extends AbstractConnection {
 		// remove last ';'
 		if (sql.endsWith(";")) {
 			sql = sql.substring(0, sql.length() - 1);
+		}
+		// remove like '/* ApplicationName=DBeaver 6.0.1 - Main */' tool app hints
+		if(sql.indexOf("/* ApplicationName") >=0) {
+			sql = sql.replaceFirst("\\/\\*.*\\*\\/\\s*", "");
 		}
 		
 		// 记录SQL
@@ -403,6 +459,24 @@ public abstract class FrontendConnection extends AbstractConnection {
 			writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "Prepare unsupported!");
 		}
 	}
+	/** 
+	 * 用来模拟mysql协议命令中的com_field_list，方便通过发sql测试 
+	 * https://dev.mysql.com/doc/internals/en/com-field-list.html
+	 */
+	public void fieldList(byte[] data) {
+		// 取得语句
+		String sql = null;		
+		try {
+			MySQLMessage mm = new MySQLMessage(data);
+			mm.position(5);
+			sql = mm.readString(charset);
+			sql = ServerParse.COM_FIELD_LIST_FLAG + sql;
+		} catch (UnsupportedEncodingException e) {
+			writeErrMessage(ErrorCode.ER_UNKNOWN_CHARACTER_SET, "Unknown charset '" + charset + "'");
+			return;
+		}		
+		this.query( sql );
+	}
 
 	public void ping() {
 		write(writeToBuffer(OkPacket.OK, allocate()));
@@ -413,7 +487,7 @@ public abstract class FrontendConnection extends AbstractConnection {
 	}
 
 	public void kill(byte[] data) {
-		writeErrMessage(ErrorCode.ER_UNKNOWN_COM_ERROR, "Unknown command");
+		close("kill command");
 	}
 
 	public void unknown(byte[] data) {
@@ -469,7 +543,7 @@ public abstract class FrontendConnection extends AbstractConnection {
 
 	@Override
 	public void handle(final byte[] data) {
-
+		this.executeSqlId ++;
 		if (isSupportCompress()) {			
 			List<byte[]> packs = CompressUtil.decompressMysqlPacket(data, decompressUnfinishedDataQueue);
 			for (byte[] pack : packs) {

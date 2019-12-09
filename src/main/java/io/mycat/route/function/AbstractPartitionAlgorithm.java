@@ -3,7 +3,9 @@ package io.mycat.route.function;
 import io.mycat.config.model.TableConfig;
 import io.mycat.config.model.rule.RuleAlgorithm;
 
+import io.mycat.util.StringUtil;
 import java.io.Serializable;
+import java.util.List;
 
 /**
  * 路由分片函数抽象类
@@ -37,8 +39,8 @@ public abstract class AbstractPartitionAlgorithm implements RuleAlgorithm ,Seria
 	 */
 	public static Integer[] calculateSequenceRange(AbstractPartitionAlgorithm algorithm, String beginValue, String endValue)  {
 		Integer begin = 0, end = 0;
-		begin = algorithm.calculate(beginValue);
-		end = algorithm.calculate(endValue);
+		begin = algorithm.calculate(StringUtil.removeBackquote(beginValue));
+		end = algorithm.calculate(StringUtil.removeBackquote(endValue));
 
 		if(begin == null || end == null){
 			return new Integer[0];
@@ -71,10 +73,20 @@ public abstract class AbstractPartitionAlgorithm implements RuleAlgorithm ,Seria
 		int nPartition = getPartitionNum();
 		if(nPartition > 0) { // 对于有限制分区数的规则,进行检查
 			int dnSize = tableConf.getDataNodes().size();
-			if(dnSize < nPartition) {
-				return  -1;
-			} else if(dnSize > nPartition) {
-				return 1;
+			boolean  distTable = tableConf.isDistTable();
+			List tables = tableConf.getDistTables();
+			if(distTable){
+				if(tables.size() < nPartition){
+					return  -1;
+				} else if(dnSize > nPartition) {
+					return 1;
+				}
+			}else{
+				if(dnSize < nPartition) {
+					return  -1;
+				} else if(dnSize > nPartition) {
+					return 1;
+				}
 			}
 		}
 		return 0;

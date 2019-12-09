@@ -6,15 +6,10 @@ import java.sql.Types;
 import java.util.List;
 
 
+import com.mongodb.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
-import com.mongodb.DB;
-import com.mongodb.DBCollection;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 import com.alibaba.druid.sql.ast.SQLExpr;
 import com.alibaba.druid.sql.ast.SQLOrderingSpecification;
 import com.alibaba.druid.sql.ast.SQLStatement;
@@ -186,15 +181,20 @@ public class MongoSQLParser {
 			throw new RuntimeException("number of values and columns have to match");
 		}
 		SQLTableSource table=state.getTableSource();
-		BasicDBObject o = new BasicDBObject();
-		int i=0;
-		for(SQLExpr col : state.getColumns()) {
-			o.put(getFieldName2(col), getExpValue(state.getValues().getValues().get(i)));
-			i++;
-		}		
+		BasicDBObject[] oList = new BasicDBObject[state.getValuesList().size()];
+		int i = 0;
+		for(SQLInsertStatement.ValuesClause values : state.getValuesList()){
+			int j = 0;
+			BasicDBObject o = new BasicDBObject();
+			oList[i++] = o ;
+			for(SQLExpr col : state.getColumns()) {
+				o.put(getFieldName2(col), getExpValue(values.getValues().get(j++)));
+			}
+		}
+
 		DBCollection coll =this._db.getCollection(table.toString());
-		coll.insert(new DBObject[] { o });
-		return 1;
+		WriteResult result = coll.insert(oList);
+		return i; // 这里result.getN 总是返回0 , 所以按插入数据量返回影响行数
 	}
 	private int UpData(SQLUpdateStatement state) {
 		SQLTableSource table=state.getTableSource();
@@ -208,9 +208,9 @@ public class MongoSQLParser {
 			set.put(getFieldName2(col.getColumn()), getExpValue(col.getValue()));	
 		}
 		DBObject mod = new BasicDBObject("$set", set);
-		coll.updateMulti(query, mod);
+		WriteResult result = coll.updateMulti(query, mod);
 		//System.out.println("changs count:"+coll.getStats().size());
-		return 1;		
+		return result.getN();
 	}
 	private int DeleteDate(SQLDeleteStatement state) {
 		SQLTableSource table=state.getTableSource();
@@ -221,11 +221,9 @@ public class MongoSQLParser {
 			throw new RuntimeException("not where of sql");
 		}
 		DBObject query = parserWhere(expr);
-		
-		coll.remove(query);
-		
-		return 1;
-		
+
+		WriteResult result = coll.remove(query);
+		return result.getN();
 	}
 	private int dropTable(SQLDropTableStatement state) {		
 		for (SQLTableSource table : state.getTableSources()){
@@ -375,7 +373,80 @@ public class MongoSQLParser {
 			  }
 		   }		
 	}
-	private void parserWhere(SQLExpr aexpr,BasicDBObject o){   
+
+	private void parserWhere(SQLExpr aexpr,BasicDBObject o){
+
+		if(aexpr instanceof SQLBinaryOpExpr){
+			SQLBinaryOpExpr expr=(SQLBinaryOpExpr)aexpr;
+			//处理AND和OR
+			if (expr.getOperator().getName().equals("AND")) {
+				parserWhere(expr.getLeft(),o);
+				parserWhere(expr.getRight(),o);
+			}
+			else if (expr.getOperator().getName().equals("OR")) {
+				orWhere(expr.getLeft(),expr.getRight(),o);
+			} else {
+				SQLExpr exprL=expr.getLeft();
+				if (!(exprL instanceof SQLBinaryOpExpr)){
+					if (expr.getOperator().getName().equals("=")) {
+						o.put(exprL.toString(), getExpValue(expr.getRight()));
+
+					}else if(("like").equals(expr.getOperator().getName().toLowerCase())){
+						//处理like以及正则转换
+						String likeString="";
+						try{
+							likeString=("%"+String.valueOf(getExpValue(expr.getRight()))+"%")
+									.replace("%%","")
+									.replace("%","^");
+						}catch (Exception e){
+							throw new RuntimeException("like SQL error");
+						}
+
+						parserDBObject(o,exprL.toString(),"$regex", likeString);
+
+					} else {
+						String op="";
+						if (expr.getOperator().getName().equals("<")) {
+							op = "$lt";
+						}
+						if (expr.getOperator().getName().equals("<=")) {
+							op = "$lte";
+						}
+						if (expr.getOperator().getName().equals(">")) {
+							op = "$gt";
+						}
+						if (expr.getOperator().getName().equals(">=")) {
+							op = "$gte";
+						}
+						if (expr.getOperator().getName().equals("!=")) {
+							op = "$ne";
+						}
+						if (expr.getOperator().getName().equals("<>")) {
+							op = "$ne";
+						}
+
+						parserDBObject(o,exprL.toString(),op, getExpValue(expr.getRight()));
+					}
+				}
+			}
+		}else if(aexpr instanceof  SQLInListExpr){
+			//处理IN和NOT IN
+			SQLInListExpr expr= (SQLInListExpr)aexpr;
+			List<SQLExpr> exprList= expr.getTargetList();
+			BasicDBList dbObject= new BasicDBList();
+			for(SQLExpr e:exprList){
+				dbObject.add(getExpValue(e));
+			}
+			String op="$in";
+			if(expr.isNot()){
+				op="$nin";
+			}
+			parserDBObject(o,expr.getExpr().toString(),op, dbObject);
+		}
+	}
+
+
+	private void parserWhereOLD(SQLExpr aexpr,BasicDBObject o){
 	     if(aexpr instanceof SQLBinaryOpExpr){
 		   SQLBinaryOpExpr expr=(SQLBinaryOpExpr)aexpr;  
 		   SQLExpr exprL=expr.getLeft();

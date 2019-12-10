@@ -36,6 +36,12 @@
 			<algorithm>hash-int</algorithm>
 		</rule>
 	</tableRule>
+	<tableRule name="sharding-by-organization">
+		<rule>
+			<columns>zone</columns>
+			<algorithm>hash-int</algorithm>
+		</rule>
+	</tableRule>
 	<tableRule name="auto-sharding-long">
 		<rule>
 			<columns>id</columns>

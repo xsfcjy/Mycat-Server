@@ -4,7 +4,37 @@
 
 	<schema name="scpf_system" checkSQLschema="true" sqlMaxLimit="10000000"  randomDataNode="scpf_system1">
 		<table name="scpf_sys_organization" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_config_properties" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_extend_flowable" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_extend_flowable_role" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_extend_flowable_user" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_extend_template" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_extend_template_value" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_extend_template_value_foruser" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_soft_java_dyncbean" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_sys_action" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_sys_module" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_sys_organizition_relation" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_sys_system" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_sys_user" primaryKey="id" type="global" dataNode="scpf_system1" />
+
+		<table name="scpf_sys_group" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_operation" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_permission_operation" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_permission_operation_disable" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 		<table name="scpf_sys_role" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_role_group" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_role_organization" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_role_permission" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_role_unit" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_role_user_relation" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_system_organization" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_unit" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_unit_role" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_user_organization" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_user_relation" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_user_relation_group" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
+		<table name="scpf_sys_user_relation_unit" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 	</schema>
 	<schema name="scpf_mall" checkSQLschema="false" sqlMaxLimit="10000000">
 		<table name="scpf_mall_product" primaryKey="id" dataNode="dn_scpf_mall" />

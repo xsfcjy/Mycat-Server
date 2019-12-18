@@ -3,21 +3,21 @@
 <mycat:schema xmlns:mycat="http://io.mycat/">
 
 	<schema name="scpf_system" checkSQLschema="true" sqlMaxLimit="10000000"  randomDataNode="scpf_system1">
-		<table name="scpf_sys_organization" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_config_properties" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_extend_flowable" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_extend_flowable_role" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_extend_flowable_user" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_extend_template" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_extend_template_value" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_extend_template_value_foruser" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_soft_java_dyncbean" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_sys_action" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_sys_module" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_sys_organizition_relation" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_sys_system" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_sys_user" primaryKey="id" type="global" dataNode="scpf_system1" />
-		<table name="scpf_dataauth" primaryKey="id" type="global" dataNode="scpf_system1" />
+		<table name="scpf_sys_organization" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_config_properties" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_extend_flowable" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_extend_flowable_role" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_extend_flowable_user" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_extend_template" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_extend_template_value" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_extend_template_value_foruser" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_soft_java_dyncbean" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_sys_action" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_sys_module" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_sys_organizition_relation" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_sys_system" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_sys_user" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_dataauth" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
 
 		<table name="scpf_sys_group" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 		<table name="scpf_sys_operation" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />

@@ -39,7 +39,7 @@
 	<tableRule name="sharding-by-organization">
 		<rule>
 			<columns>zone</columns>
-			<algorithm>hash-int</algorithm>
+			<algorithm>orgpartition</algorithm>
 		</rule>
 	</tableRule>
 	<tableRule name="auto-sharding-long">
@@ -103,6 +103,10 @@
 			用于测试时观察各物理节点与虚拟节点的分布情况，如果指定了这个属性，会把虚拟节点的murmur hash值与物理节点的映射按行输出到这个文件，没有默认值，如果不指定，就不会输出任何东西 -->
 	</function>
 
+	<!-- 自定义组织分片算法 -->
+	<function name="orgpartition"
+			  class="scpf.extend.mycat.rule.OrganizationPartitionAlgorithm">
+	</function>
 	<function name="crc32slot"
 			  class="io.mycat.route.function.PartitionByCRC32PreSlot">
 		<property name="count">2</property><!-- 要分片的数据库节点数量，必须指定，否则没法分片 -->

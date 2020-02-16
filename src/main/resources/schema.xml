@@ -21,11 +21,11 @@
 		<table name="scpf_partition_table" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
 		<table name="scpf_partition_field" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
 		<table name="scpf_partition_match_db" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
+		<table name="scpf_sys_operation" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
 
 
 
 		<table name="scpf_sys_group" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
-		<table name="scpf_sys_operation" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 		<table name="scpf_sys_permission_operation" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 		<table name="scpf_sys_permission_operation_disable" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 		<table name="scpf_sys_role" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />

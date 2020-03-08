@@ -107,7 +107,7 @@
 
 	<user name="root" defaultAccount="true">
 		<property name="password">Sfxie123456</property>
-		<property name="schemas">scpf_system</property>
+		<property name="schemas">scpf_system,scpf_mall</property>
 		<property name="defaultSchema">scpf_system</property>
 		<!--No MyCAT Database selected 错误前会尝试使用该schema作为schema，不设置则为null,报错 -->
 		

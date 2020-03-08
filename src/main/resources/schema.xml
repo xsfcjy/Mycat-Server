@@ -24,7 +24,6 @@
 		<table name="scpf_sys_operation" primaryKey="id" type="global" dataNode="scpf_system1,scpf_system2" />
 
 
-
 		<table name="scpf_sys_group" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 		<table name="scpf_sys_permission_operation" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 		<table name="scpf_sys_permission_operation_disable" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
@@ -42,13 +41,28 @@
 		<table name="scpf_sys_user_relation_group" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 		<table name="scpf_sys_user_relation_unit" primaryKey="id" dataNode="scpf_system1,scpf_system2" rule="sharding-by-organization" />
 	</schema>
-	<schema name="scpf_mall" checkSQLschema="false" sqlMaxLimit="10000000">
-		<table name="scpf_mall_product" primaryKey="id" dataNode="dn_scpf_mall" />
+	<schema name="scpf_mall" checkSQLschema="true" sqlMaxLimit="10000000"  randomDataNode="dn_scpf_mall1">
+		<table name="scpf_mall_board" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_board_product" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_brand" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_classify" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_product" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_product_detail" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_product_sku" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_product_specs" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_promotion" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_shop" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_specs" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_specs_value" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_order" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_order_item" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
+		<table name="scpf_mall_order_shipping" primaryKey="id" dataNode="dn_scpf_mall1,dn_scpf_mall2" />
 	</schema>
 
 	<dataNode name="scpf_system1" dataHost="mysql_aliyun-sfxie-1" database="scpf_system" />
 	<dataNode name="scpf_system2" dataHost="mysql_aliyun-sfxie-2" database="scpf_system" />
-	<dataNode name="dn_scpf_mall" dataHost="mysql_aliyun-sfxie-1" database="scpf_mall" />
+	<dataNode name="dn_scpf_mall1" dataHost="mysql_aliyun-sfxie-1" database="scpf_mall" />
+	<dataNode name="dn_scpf_mall2" dataHost="mysql_aliyun-sfxie-2" database="scpf_mall" />
 
 	<dataHost name="mysql_aliyun-sfxie-1" maxCon="10" minCon="10" balance="0"
 			  writeType="0" dbType="mysql" dbDriver="native" switchType="1"  slaveThreshold="100">
